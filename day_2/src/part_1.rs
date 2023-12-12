@@ -1,6 +1,6 @@
-use std::{fmt::Error, os::unix::raw::gid_t};
+use std::fmt::Error;
 #[derive(Default)]
-struct Draw {
+pub struct Draw {
     red: Option<usize>,
     green: Option<usize>,
     blue: Option<usize>,
@@ -11,11 +11,23 @@ impl Draw {
         Draw { red, green, blue }
     }
 
+    pub fn red(&self) -> Option<usize> {
+        self.red
+    }
+
+    pub fn blue(&self) -> Option<usize> {
+        self.blue
+    }
+
+    pub fn green(&self) -> Option<usize> {
+        self.green
+    }
+
     pub fn possible(&self) -> bool {
         self.red <= Some(12) && self.green <= Some(13) && self.blue <= Some(14)
     }
 
-    pub fn from_str(draw: &str) -> Draw {
+    pub fn from_string(draw: &str) -> Draw {
         let mut result = Draw::default();
         for cube in draw.split(", ") {
             let (amount, color) = cube.split_once(' ').unwrap();
@@ -31,9 +43,9 @@ impl Draw {
     }
 }
 
-struct Game {
+pub struct Game {
     id: usize,
-    draws: Vec<Draw>,
+    pub draws: Vec<Draw>,
 }
 
 impl Game {
@@ -44,7 +56,7 @@ impl Game {
         self.draws.iter().all(|draw| draw.possible())
     }
 
-    pub fn from_str(line: &str) -> Game {
+    pub fn from_string(line: &str) -> Game {
         let (id, rest) = Game::parse_line(line);
         let draws = Game::parse_draws(rest.unwrap());
         Game::new(id, draws)
@@ -57,7 +69,7 @@ impl Game {
     fn parse_draws(draws: &str) -> Vec<Draw> {
         let mut result = Vec::new();
         for draw in draws.split("; ") {
-            let parsed_draw = Draw::from_str(draw);
+            let parsed_draw = Draw::from_string(draw);
             result.push(parsed_draw);
         }
         result
@@ -75,7 +87,7 @@ impl Game {
 pub fn process(input: &str) -> Result<usize, Error> {
     let result: usize = input
         .lines()
-        .map(Game::from_str)
+        .map(Game::from_string)
         .filter(|game| game.valid())
         .map(|game| game.id())
         .sum();
