@@ -98,12 +98,11 @@ pub fn process(input: &str) -> Result<usize, Error> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rstest::*;
 
     #[test]
     fn test_parse_game_stats_one_draw() {
         let line: &str = "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green";
-        let game = Game::from_str(line);
+        let game = Game::from_string(line);
 
         assert!(game.valid())
     }
