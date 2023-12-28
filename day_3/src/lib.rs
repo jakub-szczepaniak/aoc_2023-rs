@@ -1,5 +1,5 @@
-use std::collections::HashSet;
-use std::{fmt, usize};
+use std::collections::{HashMap, HashSet};
+use std::{fmt, i32, usize};
 
 pub fn part_1(input: &str) -> Result<usize, SchematicsError> {
     let schema: Schematics = parse(input).unwrap();
@@ -13,7 +13,9 @@ pub fn part_1(input: &str) -> Result<usize, SchematicsError> {
 }
 
 pub fn part_2(input: &str) -> Result<usize, SchematicsError> {
-    Ok(parse(input).unwrap().symbols.len())
+    let schema = parse(input).unwrap();
+    let result: i32 = schema.gear_ratios().iter().sum();
+    Ok(result as usize)
 }
 
 fn parse(input: &str) -> Result<Schematics, SchematicsError> {
@@ -37,8 +39,12 @@ fn parse(input: &str) -> Result<Schematics, SchematicsError> {
                 if let Some(num) = current_number.take() {
                     symbol_schematics.add_part_number(num);
                 }
+
                 if symbol != '.' {
                     symbol_schematics.add_symbol((column as i32, row as i32));
+                    if symbol == '*' {
+                        symbol_schematics.add_gear((column as i32, row as i32));
+                    }
                 }
             }
         }
@@ -65,6 +71,7 @@ impl std::error::Error for SchematicsError {}
 struct Schematics {
     symbols: HashSet<(i32, i32)>,
     part_numbers: Vec<PartNumber>,
+    gears: HashSet<(i32, i32)>,
 }
 
 impl Schematics {
@@ -72,6 +79,7 @@ impl Schematics {
         Schematics {
             symbols: HashSet::new(),
             part_numbers: Vec::new(),
+            gears: HashSet::new(),
         }
     }
 
@@ -83,11 +91,53 @@ impl Schematics {
         self.part_numbers.push(part_number);
     }
 
+    pub fn add_gear(&mut self, coordinates: (i32, i32)) {
+        self.gears.insert(coordinates);
+    }
+
     pub fn filter_adjacent(&self) -> Vec<&PartNumber> {
         self.part_numbers
             .iter()
             .filter(move |part_number| part_number.is_adjacent(&self.symbols))
             .collect()
+    }
+
+    pub fn gear_ratios(&self) -> Vec<i32> {
+        let mut gears: HashMap<(i32, i32), Gear> = HashMap::new();
+
+        for part_number in &self.part_numbers {
+            for adjacent in &part_number.coordinates {
+                if self.gears.contains(&adjacent) {
+                    let gear = gears.get(&adjacent).unwrap_or(&Gear::Empty);
+                    gears.insert(adjacent.clone(), gear.connect(part_number));
+                }
+            }
+        }
+        gears
+            .values()
+            .map(|gear| match gear {
+                Gear::Valid(ratio) => *ratio,
+                _ => 0,
+            })
+            .collect()
+    }
+}
+
+#[derive(Copy, Clone)]
+enum Gear {
+    Empty,
+    Single(i32),
+    Valid(i32),
+    Invalid,
+}
+
+impl Gear {
+    fn connect(self, other: &PartNumber) -> Self {
+        match self {
+            Self::Empty => Self::Single(other.value() as i32),
+            Self::Single(first) => Self::Valid(first * other.value() as i32),
+            Self::Valid(_) | Self::Invalid => Self::Invalid,
+        }
     }
 }
 
@@ -162,7 +212,7 @@ mod tests {
         let mut expected = symbols;
         expected.add_symbol((0, 0));
 
-        let result = parse("*");
+        let result = parse("-");
         assert!(result.is_ok());
         let symbols_schematics = result.unwrap();
         assert_eq!(symbols_schematics, expected)
@@ -268,5 +318,37 @@ mod tests {
 
         assert_eq!(result.filter_adjacent().len(), 1);
         assert_eq!(result.part_numbers.len(), 1);
+    }
+
+    #[rstest]
+    fn test_one_line_one_gear() {
+        let schematics = parse("..*");
+
+        assert!(schematics.is_ok());
+
+        let result = schematics.unwrap();
+        assert_eq!(result.gears.len(), 1);
+        assert_eq!(result.symbols.len(), 1);
+    }
+
+    #[rstest]
+    fn test_part_numbers_not_adjacent_to_gear() {
+        let schematics = parse("34..12-");
+
+        assert!(schematics.is_ok());
+
+        let result = schematics.unwrap();
+
+        assert_eq!(result.gear_ratios().len(), 0);
+    }
+
+    #[rstest]
+    fn test_calculate_gear_ratio() {
+        let schematics = parse("..21*2..");
+
+        let result = schematics.unwrap();
+
+        assert_eq!(result.gear_ratios().len(), 1);
+        assert_eq!(result.gear_ratios()[0], 42);
     }
 }
