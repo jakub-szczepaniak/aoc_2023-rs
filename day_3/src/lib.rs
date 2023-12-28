@@ -1,8 +1,15 @@
 use std::collections::HashSet;
-use std::fmt;
+use std::{fmt, usize};
 
 pub fn part_1(input: &str) -> Result<usize, SchematicsError> {
-    Ok(parse(input).unwrap().symbols.len())
+    let schema: Schematics = parse(input).unwrap();
+    let result: usize = schema
+        .filter_adjacent()
+        .iter()
+        .map(|part_number| part_number.value())
+        .sum();
+
+    Ok(result)
 }
 
 pub fn part_2(input: &str) -> Result<usize, SchematicsError> {
@@ -22,7 +29,7 @@ fn parse(input: &str) -> Result<Schematics, SchematicsError> {
         for (column, symbol) in line.chars().enumerate() {
             if symbol.is_ascii_digit() {
                 if let Some(num) = current_number.as_mut() {
-                    num.add_digit(symbol)
+                    num.add_digit(symbol, column as i32, row as i32);
                 } else {
                     current_number = Some(PartNumber::new(symbol, column as i32, row as i32));
                 }
@@ -75,6 +82,13 @@ impl Schematics {
     pub fn add_part_number(&mut self, part_number: PartNumber) {
         self.part_numbers.push(part_number);
     }
+
+    pub fn filter_adjacent(&self) -> Vec<&PartNumber> {
+        self.part_numbers
+            .iter()
+            .filter(move |part_number| part_number.is_adjacent(&self.symbols))
+            .collect()
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -103,9 +117,19 @@ impl PartNumber {
         result.insert((x + 1, y - 1));
         result
     }
-    pub fn add_digit(&mut self, symbol: char) {
+    pub fn add_digit(&mut self, symbol: char, x: i32, y: i32) {
         let new_digit = (symbol as u8 - b'0') as i32;
         self.value = self.value * 10 + new_digit;
+        self.coordinates
+            .extend([(x + 1, y + 1), (x + 1, y), (x + 1, y - 1)])
+    }
+
+    pub fn is_adjacent(&self, other: &HashSet<(i32, i32)>) -> bool {
+        self.coordinates.intersection(other).next().is_some()
+    }
+
+    pub fn value(&self) -> usize {
+        self.value as usize
     }
 }
 
@@ -171,9 +195,12 @@ mod tests {
     fn test_parse_one_line_two_digits(symbols: Schematics) {
         let mut expected = symbols;
 
+        let mut coordinates = adjacent_coordinates(0, 0);
+        coordinates.extend([(2, 0), (2, -1), (2, 1)]);
+
         expected.add_part_number(PartNumber {
             value: 12,
-            coordinates: adjacent_coordinates(0, 0),
+            coordinates,
         });
 
         let result = parse("12");
@@ -182,27 +209,6 @@ mod tests {
 
         let result_schematics = result.unwrap();
         assert_eq!(result_schematics, expected);
-    }
-
-    #[rstest]
-    fn test_parse_two_lines_two_numbers(symbols: Schematics) {
-        let mut expected = symbols;
-        expected.add_part_number(PartNumber {
-            value: 13,
-            coordinates: adjacent_coordinates(2, 0),
-        });
-        expected.add_part_number(PartNumber {
-            value: 56,
-            coordinates: adjacent_coordinates(6, 0),
-        });
-        expected.add_symbol((0, 0));
-
-        let result = parse("*.13..56..");
-
-        assert!(result.is_ok());
-        let result_schematics = result.unwrap();
-
-        assert_eq!(result_schematics, expected)
     }
 
     fn adjacent_coordinates(x: i32, y: i32) -> HashSet<(i32, i32)> {
@@ -216,7 +222,7 @@ mod tests {
             value: 12,
             coordinates: adjacent_coordinates(0, 0),
         };
-        part_number.coordinates.extend([(1, 0), (1, 1), (1, -1)]);
+        part_number.coordinates.extend([(2, 0), (2, 1), (2, -1)]);
         expected.add_part_number(part_number);
 
         let result = parse("12");
@@ -225,5 +231,42 @@ mod tests {
         let result_schematics = result.unwrap();
 
         assert_eq!(result_schematics, expected);
+    }
+    #[rstest]
+    fn test_part_number_is_not_adjacent_to_coordinates(symbols: Schematics) {
+        let mut schematics = symbols;
+        let part_number = PartNumber {
+            value: 2,
+            coordinates: adjacent_coordinates(0, 0),
+        };
+
+        schematics.add_part_number(part_number);
+        schematics.add_symbol((7, 7)); // not adjacent
+
+        assert!(schematics.filter_adjacent().is_empty());
+    }
+    #[rstest]
+    fn test_part_number_is_adjacent_to_coordinates(symbols: Schematics) {
+        let mut schematics = symbols;
+        let part_number = PartNumber {
+            value: 2,
+            coordinates: adjacent_coordinates(0, 0),
+        };
+
+        schematics.add_part_number(part_number);
+        schematics.add_symbol((0, 1)); // adjacent
+
+        assert_eq!(schematics.filter_adjacent().len(), 1);
+    }
+
+    #[rstest]
+    fn test_part_number_coordinates_extended_after_symbol_minus_next_to_number() {
+        let schematics = parse("..12-");
+
+        assert!(schematics.is_ok());
+        let result = schematics.unwrap();
+
+        assert_eq!(result.filter_adjacent().len(), 1);
+        assert_eq!(result.part_numbers.len(), 1);
     }
 }
