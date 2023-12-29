@@ -19,8 +19,19 @@ pub fn part_1(input: &str) -> Result<i32, ScratchingError> {
     }
 }
 
-pub fn part_2(_input: &str) -> Result<i32, ScratchingError> {
-    Ok(1)
+pub fn part_2(input: &str) -> Result<i32, ScratchingError> {
+    let scratch_cards = parse(input).unwrap();
+
+    let mut piles = vec![1usize; scratch_cards.len()];
+    for (index, scratch_card) in scratch_cards.iter().enumerate() {
+        let winners = scratch_card.winners() as usize;
+        for i in index + 1..index + 1 + winners {
+            piles[i] += piles[index]
+        }
+    }
+
+    let result = piles.iter().sum::<usize>() as i32;
+    Ok(result)
 }
 
 fn parse(input: &str) -> Result<Vec<ScratchCard>, ScratchingError> {
@@ -82,12 +93,32 @@ impl ScratchCard {
             x => 1 << (x - 1),
         }
     }
+
+    pub fn winners(&self) -> i32 {
+        self.chosen_numbers
+            .iter()
+            .filter(|number| self.winning_numbers.contains(number))
+            .count() as i32
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rstest::*;
+    #[rstest]
+    fn test_matches_count_can_non_zero() {
+        let scratch_card = ScratchCard::from_string("Card   1: 23 | 23 9").unwrap();
+
+        assert_eq!(scratch_card.winners(), 1);
+    }
+
+    #[rstest]
+    fn test_matches_count_can_be_zero() {
+        let scratch_card = ScratchCard::from_string("Card   1: 23 | 63 9").unwrap();
+
+        assert_eq!(scratch_card.winners(), 0);
+    }
 
     #[rstest]
     fn test_score_can_be_zero() {
